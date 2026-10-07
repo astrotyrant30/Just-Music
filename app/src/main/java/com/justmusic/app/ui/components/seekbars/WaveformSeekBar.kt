@@ -1,11 +1,16 @@
 package com.justmusic.app.ui.components.seekbars
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -31,9 +36,14 @@ fun WaveformSeekBar(
         }
     }
 
-    val progressFraction = if (durationMs > 0) {
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+
+    val actualFraction = if (durationMs > 0) {
         (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
+
+    val progressFraction = if (isDragging) dragFraction else actualFraction
 
     Canvas(
         modifier = modifier
@@ -41,11 +51,36 @@ fun WaveformSeekBar(
             .height(36.dp)
             .pointerInput(durationMs) {
                 detectTapGestures { offset ->
-                    if (durationMs > 0) {
+                    if (durationMs > 0 && size.width > 0) {
                         val fraction = (offset.x / size.width).coerceIn(0f, 1f)
                         onSeek((fraction * durationMs).toLong())
                     }
                 }
+            }
+            .pointerInput(durationMs) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        if (durationMs > 0 && size.width > 0) {
+                            isDragging = true
+                            dragFraction = (offset.x / size.width).coerceIn(0f, 1f)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        if (durationMs > 0 && size.width > 0) {
+                            dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                        }
+                    },
+                    onDragEnd = {
+                        if (durationMs > 0) {
+                            onSeek((dragFraction * durationMs).toLong())
+                        }
+                        isDragging = false
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                    }
+                )
             }
     ) {
         val canvasWidth = size.width

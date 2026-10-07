@@ -19,6 +19,21 @@ class SettingsRepository(private val context: Context) {
         val SEEK_BAR_STYLE = stringPreferencesKey("seek_bar_style")
         val MIN_DURATION_MS = longPreferencesKey("min_duration_ms")
         val LAST_PLAYED_SONG_ID = longPreferencesKey("last_played_song_id")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val THEME_MODE = stringPreferencesKey("theme_mode") // "SYSTEM", "LIGHT", "DARK"
+        val USER_NAME = stringPreferencesKey("user_name")
+    }
+
+    val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.ONBOARDING_COMPLETED] ?: false
+    }
+
+    val themeMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.THEME_MODE] ?: "DARK"
+    }
+
+    val userName: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.USER_NAME] ?: "Music Lover"
     }
 
     val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -36,6 +51,24 @@ class SettingsRepository(private val context: Context) {
 
     val lastPlayedSongId: Flow<Long?> = context.dataStore.data.map { prefs ->
         prefs[PreferencesKeys.LAST_PLAYED_SONG_ID]
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.ONBOARDING_COMPLETED] = completed
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.THEME_MODE] = mode
+        }
+    }
+
+    suspend fun setUserName(name: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.USER_NAME] = name
+        }
     }
 
     suspend fun setSkipSilenceEnabled(enabled: Boolean) {

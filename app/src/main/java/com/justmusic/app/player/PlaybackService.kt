@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -20,6 +21,17 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        // Allocate smaller audio buffers tuned for local files, avoiding large heap/native RAM spikes
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15_000, // minBufferMs
+                30_000, // maxBufferMs
+                1_000,  // bufferForPlaybackMs
+                2_000   // bufferForPlaybackAfterRebufferMs
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -28,6 +40,7 @@ class PlaybackService : MediaSessionService() {
                     .build(),
                 true
             )
+            .setLoadControl(loadControl)
             .setHandleAudioBecomingNoisy(true)
             .build().apply {
                 skipSilenceEnabled = true

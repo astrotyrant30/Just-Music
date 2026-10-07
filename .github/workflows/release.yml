@@ -35,18 +35,18 @@ jobs:
       - name: Prepare Release Asset
         run: |
           mkdir -p release-asset
-          cp app/build/outputs/apk/debug/app-debug.apk release-asset/JustMusic-v1.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-asset/JustMusic-${{ github.ref_name }}.apk
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JustMusic-v1.0-APK
-          path: release-asset/JustMusic-v1.0.apk
+          name: JustMusic-${{ github.ref_name }}-APK
+          path: release-asset/*.apk
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
-          files: release-asset/JustMusic-v1.0.apk
+          files: release-asset/*.apk
           generate_release_notes: true

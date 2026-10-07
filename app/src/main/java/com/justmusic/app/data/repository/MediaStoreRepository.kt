@@ -12,8 +12,6 @@ import kotlinx.coroutines.withContext
 class MediaStoreRepository(private val context: Context) {
 
     suspend fun scanAudioFiles(minDurationMs: Long = 30_000L): List<Song> = withContext(Dispatchers.IO) {
-        val songList = mutableListOf<Song>()
-
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -37,6 +35,9 @@ class MediaStoreRepository(private val context: Context) {
         )
 
         cursor?.use { c ->
+            val count = c.count
+            val songList = ArrayList<Song>(count)
+
             val idColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -77,9 +78,8 @@ class MediaStoreRepository(private val context: Context) {
                     )
                 )
             }
-        }
-
-        songList
+            songList
+        } ?: emptyList()
     }
 
     suspend fun getAlbums(songs: List<Song>): List<Album> = withContext(Dispatchers.IO) {

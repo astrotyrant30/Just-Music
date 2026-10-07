@@ -1,9 +1,11 @@
 package com.justmusic.app.ui.screens.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,21 +16,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -47,27 +48,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.justmusic.app.R
 import com.justmusic.app.data.model.SeekBarStyle
 import com.justmusic.app.data.model.Song
 import com.justmusic.app.ui.components.AudioOutputBadge
-import com.justmusic.app.ui.components.CircularPlayButton
 import com.justmusic.app.ui.components.seekbars.CapsuleSeekBar
 import com.justmusic.app.ui.components.seekbars.FluidWaveSeekBar
+import com.justmusic.app.ui.components.seekbars.ModernAestheticSeekBar
 import com.justmusic.app.ui.components.seekbars.SegmentedSeekBar
 import com.justmusic.app.ui.components.seekbars.SeekbarSelectorDialog
 import com.justmusic.app.ui.components.seekbars.WaveformSeekBar
 import com.justmusic.app.ui.theme.GradientExtractor
 import com.justmusic.app.ui.theme.PinkAccent
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AestheticPlayerScreen(
     song: Song?,
@@ -93,292 +94,354 @@ fun AestheticPlayerScreen(
 ) {
     if (song == null) return
 
+    // Handle Android system back press to collapse player cleanly
+    BackHandler(enabled = true) {
+        onCollapse()
+    }
+
     val context = LocalContext.current
-    var topColor by remember { mutableStateOf(Color(0xFF282142)) }
-    var bottomColor by remember { mutableStateOf(Color(0xFF131024)) }
+    var topColor by remember { mutableStateOf(Color(0xFF1E293B)) }
+    var bottomColor by remember { mutableStateOf(Color(0xFF3B82F6)) }
     var showSeekbarDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(song.albumArtUri) {
-        val colors = GradientExtractor.extractGradientColors(context, song.albumArtUri)
-        topColor = colors.first
-        bottomColor = colors.second
+    LaunchedEffect(song.albumArtUri, song.title) {
+        val extracted = GradientExtractor.extractDynamicPalette(
+            context = context,
+            albumArtUri = song.albumArtUri,
+            fallbackSeed = "${song.title}_${song.artist}"
+        )
+        if (extracted != null) {
+            topColor = extracted.gradientTop
+            bottomColor = extracted.gradientBottom
+        }
     }
 
     val bgBrush = Brush.verticalGradient(
-        colors = listOf(topColor, bottomColor)
+        colors = listOf(
+            topColor.copy(alpha = 0.95f),
+            bottomColor.copy(alpha = 0.85f),
+            Color(0xFF0D0F14)
+        )
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(bgBrush)
-            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
-            // Top Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onCollapse) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Collapse",
-                        tint = Color.White,
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+            val availableHeight = maxHeight
+            val availableWidth = maxWidth
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = song.album.ifEmpty { "Chillhop Essentials" },
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 14.sp,
-                        color = Color(0xD9FFFFFF),
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+            // Responsive sizing to adapt seamlessly to any phone aspect ratio
+            val artworkSize = min(availableHeight * 0.40f, availableWidth * 0.85f)
+            val verticalSpacing = if (availableHeight < 680.dp) 10.dp else 18.dp
 
-                IconButton(onClick = { showSeekbarDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Menu",
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Hero Artwork Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .aspectRatio(1f)
-                    .shadow(16.dp, RoundedCornerShape(28.dp))
-                    .clip(RoundedCornerShape(28.dp))
-            ) {
-                AsyncImage(
-                    model = song.albumArtUri,
-                    placeholder = painterResource(id = R.drawable.ic_default_album_art),
-                    error = painterResource(id = R.drawable.ic_default_album_art),
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Track Title & Artist Name
             Column(
+                modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
+                // Top Header Bar
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = song.title,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
+                    IconButton(
+                        onClick = onCollapse,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x2AFFFFFF))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Collapse",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "NOW PLAYING",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp,
+                            color = Color(0x99FFFFFF)
+                        )
+                        Text(
+                            text = song.album.ifEmpty { "Just Music Library" },
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
                     IconButton(
-                        onClick = { onToggleLike(song.id) },
-                        modifier = Modifier.size(28.dp)
+                        onClick = { showSeekbarDialog = true },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x2AFFFFFF))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Menu",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(verticalSpacing))
+
+                // Hero Artwork Card (Rounded square with drop shadow, matching Screenshot 3)
+                Box(
+                    modifier = Modifier
+                        .size(artworkSize)
+                        .aspectRatio(1f)
+                        .shadow(24.dp, RoundedCornerShape(26.dp), spotColor = Color(0x66000000))
+                        .clip(RoundedCornerShape(26.dp))
+                ) {
+                    val heroImageRequest = remember(song.albumArtUri) {
+                        ImageRequest.Builder(context)
+                            .data(song.albumArtUri)
+                            .size(600, 600)
+                            .build()
+                    }
+                    AsyncImage(
+                        model = heroImageRequest,
+                        placeholder = painterResource(id = R.drawable.ic_default_album_art),
+                        error = painterResource(id = R.drawable.ic_default_album_art),
+                        contentDescription = "Album Art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(verticalSpacing))
+
+                // Song Title, Artist and Heart Icon Row (Matching Screenshot 3 middle screen)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = song.title,
+                            fontSize = if (availableHeight < 680.dp) 19.sp else 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = song.artist,
+                            fontSize = if (availableHeight < 680.dp) 13.sp else 15.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = Color(0xCCFFFFFF),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Circular heart icon container matching Screenshot 3
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (isLiked) PinkAccent.copy(alpha = 0.25f) else Color(0x2AFFFFFF))
+                            .clickable { onToggleLike(song.id) },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (isLiked) PinkAccent else Color(0xB3FFFFFF)
+                            tint = if (isLiked) PinkAccent else Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
 
-                Text(
-                    text = song.artist,
-                    fontSize = 15.sp,
-                    color = Color(0xB3FFFFFF),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+                Spacer(modifier = Modifier.height(verticalSpacing / 2))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Audio Seek Bar Row (Time elapsed | Seek Bar | Remaining)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = formatTime(currentPositionMs),
-                    fontSize = 12.sp,
-                    color = Color(0xB3FFFFFF)
+                // Modern Drag-Aware Seek Bar with Timestamps (Fixing jitter/seek bug)
+                ModernAestheticSeekBar(
+                    currentPositionMs = currentPositionMs,
+                    durationMs = durationMs,
+                    onSeek = onSeekTo,
+                    activeColor = Color.White,
+                    inactiveColor = Color(0x35FFFFFF),
+                    showTimeLabels = true
                 )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.height(verticalSpacing / 2))
 
-                Box(modifier = Modifier.weight(1f)) {
-                    when (seekBarStyle) {
-                        SeekBarStyle.WAVEFORM -> WaveformSeekBar(
-                            currentPositionMs = currentPositionMs,
-                            durationMs = durationMs,
-                            onSeek = onSeekTo
-                        )
-                        SeekBarStyle.CAPSULE -> CapsuleSeekBar(
-                            currentPositionMs = currentPositionMs,
-                            durationMs = durationMs,
-                            onSeek = onSeekTo
-                        )
-                        SeekBarStyle.SEGMENTED -> SegmentedSeekBar(
-                            currentPositionMs = currentPositionMs,
-                            durationMs = durationMs,
-                            onSeek = onSeekTo
-                        )
-                        SeekBarStyle.FLUID_WAVE -> FluidWaveSeekBar(
-                            currentPositionMs = currentPositionMs,
-                            durationMs = durationMs,
-                            onSeek = onSeekTo
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = "-${formatTime(durationMs - currentPositionMs)}",
-                    fontSize = 12.sp,
-                    color = Color(0xB3FFFFFF)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Audio Playback Action Control Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onToggleRepeat) {
-                    Icon(
-                        imageVector = if (repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                        contentDescription = "Repeat",
-                        tint = if (repeatMode != 0) PinkAccent else Color(0x77FFFFFF)
-                    )
-                }
-
-                IconButton(onClick = { onSeekTo((currentPositionMs - 10000).coerceAtLeast(0L)) }) {
-                    Icon(
-                        imageVector = Icons.Default.Replay10,
-                        contentDescription = "Rewind 10s",
-                        tint = Color.White
-                    )
-                }
-
-                IconButton(onClick = onSkipPrevious) {
-                    Icon(
-                        imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Previous",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-
-                CircularPlayButton(
-                    isPlaying = isPlaying,
-                    onClick = onTogglePlayPause,
-                    size = 64.dp
-                )
-
-                IconButton(onClick = onSkipNext) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-
-                IconButton(onClick = { onSeekTo((currentPositionMs + 10000).coerceAtMost(durationMs)) }) {
-                    Icon(
-                        imageVector = Icons.Default.Forward10,
-                        contentDescription = "Forward 10s",
-                        tint = Color.White
-                    )
-                }
-
-                IconButton(onClick = onToggleShuffle) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = if (shuffleMode) PinkAccent else Color(0x77FFFFFF)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Footer Status Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AudioOutputBadge(deviceName = audioDeviceName)
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Skip Silence indicator badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (skipSilenceEnabled) Color(0x3300E5FF) else Color(0x22FFFFFF))
-                            .clickable(onClick = onToggleSkipSilence)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (skipSilenceEnabled) "Silence Skipped" else "Skip Silence Off",
-                            fontSize = 11.sp,
-                            color = if (skipSilenceEnabled) Color(0xFF00E5FF) else Color(0x88FFFFFF)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
+                // Playback Controls Row (Shuffle, Previous, Play/Pause, Next, Repeat)
+                // Exactly 5 buttons spaced evenly so Shuffle is ALWAYS visible and never pushed off screen
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Shuffle Button
                     IconButton(
-                        onClick = { showSeekbarDialog = true },
-                        modifier = Modifier.size(28.dp)
+                        onClick = onToggleShuffle,
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (shuffleMode) PinkAccent else Color(0xB3FFFFFF),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (shuffleMode) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(PinkAccent)
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. Previous Button
+                    IconButton(
+                        onClick = onSkipPrevious,
+                        modifier = Modifier.size(50.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = "Queue / Settings",
-                            tint = Color(0xB3FFFFFF)
+                            imageVector = Icons.Default.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
                         )
                     }
+
+                    // 3. Main Play/Pause Button (Matching Screenshot 3 center prominent button)
+                    Box(
+                        modifier = Modifier
+                            .size(if (availableHeight < 680.dp) 60.dp else 68.dp)
+                            .shadow(16.dp, CircleShape, spotColor = Color(0x88000000))
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .clickable(onClick = onTogglePlayPause),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = Color(0xFF0F172A),
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+
+                    // 4. Next Button
+                    IconButton(
+                        onClick = onSkipNext,
+                        modifier = Modifier.size(50.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = "Next",
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+
+                    // 5. Repeat Button
+                    IconButton(
+                        onClick = onToggleRepeat,
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = if (repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                contentDescription = "Repeat",
+                                tint = if (repeatMode != 0) PinkAccent else Color(0xB3FFFFFF),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (repeatMode != 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(PinkAccent)
+                                )
+                            }
+                        }
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(verticalSpacing / 2))
+
+                // Footer Device & Status Bar (Matching Screenshot 3 bottom pill)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0x26FFFFFF))
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AudioOutputBadge(deviceName = audioDeviceName)
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Skip Silence toggle badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (skipSilenceEnabled) Color(0x3300E5FF) else Color(0x1AFFFFFF))
+                                    .clickable(onClick = onToggleSkipSilence)
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = if (skipSilenceEnabled) "Skip Silence: ON" else "Skip Silence: OFF",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (skipSilenceEnabled) Color(0xFF00E5FF) else Color(0x99FFFFFF)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            IconButton(
+                                onClick = { showSeekbarDialog = true },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Seekbar Style",
+                                    tint = Color(0xB3FFFFFF),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
             }
         }
 
@@ -391,11 +454,4 @@ fun AestheticPlayerScreen(
             )
         }
     }
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format("%d.%02d", minutes, seconds)
 }

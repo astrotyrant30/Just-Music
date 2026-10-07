@@ -65,6 +65,29 @@ class MusicPlayerManager(
     private val _likedSongIds = MutableStateFlow<Set<Long>>(emptySet())
     val likedSongIds: StateFlow<Set<Long>> = _likedSongIds.asStateFlow()
 
+    private var sleepTimerJob: Job? = null
+    private val _sleepTimerRemainingMinutes = MutableStateFlow<Int?>(null)
+    val sleepTimerRemainingMinutes: StateFlow<Int?> = _sleepTimerRemainingMinutes.asStateFlow()
+
+    fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes <= 0) {
+            _sleepTimerRemainingMinutes.value = null
+            return
+        }
+        _sleepTimerRemainingMinutes.value = minutes
+        sleepTimerJob = scope.launch {
+            var remaining = minutes
+            while (remaining > 0) {
+                delay(60_000L)
+                remaining--
+                _sleepTimerRemainingMinutes.value = if (remaining > 0) remaining else null
+            }
+            controller?.pause()
+            _sleepTimerRemainingMinutes.value = null
+        }
+    }
+
     init {
         initController()
         observeAudioDevice()
@@ -134,13 +157,16 @@ class MusicPlayerManager(
     private fun startPositionUpdates() {
         scope.launch {
             while (isActive) {
-                controller?.let { c ->
-                    if (c.isPlaying) {
+                if (_isPlaying.value) {
+                    controller?.let { c ->
                         _currentPositionMs.value = c.currentPosition.coerceAtLeast(0L)
                         _durationMs.value = c.duration.coerceAtLeast(0L)
                     }
+                    delay(250)
+                } else {
+                    // When paused, idle at 1s intervals to eliminate CPU waking and RAM churn
+                    delay(1000)
                 }
-                delay(250)
             }
         }
     }

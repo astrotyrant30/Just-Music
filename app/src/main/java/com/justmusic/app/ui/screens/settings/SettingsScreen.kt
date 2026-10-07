@@ -1,7 +1,11 @@
 package com.justmusic.app.ui.screens.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,8 +13,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -24,11 +40,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.justmusic.app.data.model.SeekBarStyle
 import com.justmusic.app.ui.components.seekbars.SeekbarSelectorDialog
+import com.justmusic.app.ui.theme.LocalAppThemeColors
 import com.justmusic.app.ui.theme.PinkAccent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,159 +55,379 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
+
 @Composable
 fun SettingsScreen(
+    currentThemeMode: String,
     skipSilenceEnabled: Boolean,
     seekBarStyle: SeekBarStyle,
+    userName: String = "Music Lover",
+    onThemeSelected: (String) -> Unit,
     onToggleSkipSilence: () -> Unit,
-    onStyleSelected: (SeekBarStyle) -> Unit
+    onStyleSelected: (SeekBarStyle) -> Unit,
+    onUserNameChange: (String) -> Unit = {}
 ) {
+    val theme = LocalAppThemeColors.current
+    val context = LocalContext.current
     var showSeekbarDialog by remember { mutableStateOf(false) }
+    var showNameDialog by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf(userName) }
     var updateStatus by remember { mutableStateOf("Check for Updates") }
-    val currentVersion = "v1.0.0"
+    var releaseDownloadUrl by remember { mutableStateOf<String?>(null) }
+    val currentVersion = "v1.1.0"
     val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1B172E))
-            .padding(top = 16.dp, start = 20.dp, end = 20.dp)
+            .background(theme.background)
+            .padding(top = 18.dp, start = 20.dp, end = 20.dp)
     ) {
         Text(
             text = "Settings",
-            fontSize = 24.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = theme.textPrimary
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        LazyColumn {
-            // Seek Bar Style Selector Option
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // 0. Greeting Display Name
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x22FFFFFF))
-                        .clickable { showSeekbarDialog = true }
-                        .padding(16.dp),
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.cardBg)
+                        .clickable {
+                            nameInput = if (userName == "Music Lover") "" else userName
+                            showNameDialog = true
+                        }
+                        .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(theme.cardSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Greeting",
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Greeting Name",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = theme.textPrimary
+                        )
+                        Text(
+                            text = if (userName.isNotBlank() && userName != "Music Lover") userName else "Time-based Greeting (Tap to set name)",
+                            fontSize = 13.sp,
+                            color = theme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Edit",
+                        tint = theme.textSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // 1. App Theme Setting (Light, Dark, System)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.cardBg)
+                        .padding(18.dp)
+                ) {
+                    Text(
+                        text = "App Appearance",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.textPrimary
+                    )
+                    Text(
+                        text = "Customize dark and light theme styles",
+                        fontSize = 12.sp,
+                        color = theme.textSecondary,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            Triple("LIGHT", "Light", Icons.Default.LightMode),
+                            Triple("DARK", "Dark", Icons.Default.DarkMode),
+                            Triple("SYSTEM", "System", Icons.Default.SettingsBrightness)
+                        ).forEach { (mode, label, icon) ->
+                            val isSelected = currentThemeMode.equals(mode, ignoreCase = true)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        if (isSelected) theme.primary
+                                        else if (theme.isDark) Color(0x22FFFFFF)
+                                        else Color(0xFFEEEAF8)
+                                    )
+                                    .clickable { onThemeSelected(mode) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = if (isSelected) Color.White else theme.textSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else theme.textSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Audio Seek Bar Style
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.cardBg)
+                        .clickable { showSeekbarDialog = true }
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(theme.cardSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = "Seek Bar",
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Audio Seek Bar Style",
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            color = theme.textPrimary
                         )
                         Text(
                             text = seekBarStyle.displayName,
                             fontSize = 13.sp,
-                            color = PinkAccent
+                            color = theme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = theme.textSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            // Skip Silence Option
+            // 3. Skip Silence Automatically
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x22FFFFFF))
-                        .padding(16.dp),
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.cardBg)
+                        .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(theme.cardSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = "Skip Silence",
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Skip Silence Automatically",
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            color = theme.textPrimary
                         )
                         Text(
-                            text = "Automatically skips silent audio segments during track playback",
+                            text = "Skips silent audio frames seamlessly",
                             fontSize = 12.sp,
-                            color = Color(0xB3FFFFFF)
+                            color = theme.textSecondary
                         )
                     }
 
                     Switch(
                         checked = skipSilenceEnabled,
                         onCheckedChange = { onToggleSkipSilence() },
-                        colors = SwitchDefaults.colors(checkedThumbColor = PinkAccent)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = theme.primary
+                        )
                     )
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // App Version Info & GitHub Update Tracker
+            // 4. GitHub Releases & Update Checker (Fixed endpoint & HTTP 404 handling)
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x11FFFFFF))
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.cardBg)
                         .clickable {
+                            if (releaseDownloadUrl != null) {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(releaseDownloadUrl))
+                                context.startActivity(intent)
+                                return@clickable
+                            }
+
                             if (updateStatus == "Checking...") return@clickable
                             updateStatus = "Checking..."
                             coroutineScope.launch(Dispatchers.IO) {
                                 try {
-                                    // Change 'abhinav/JustMusic' to your actual GitHub repo!
-                                    val url = URL("https://api.github.com/repos/abhinav/JustMusic/releases/latest")
-                                    val connection = url.openConnection() as HttpURLConnection
-                                    connection.requestMethod = "GET"
-                                    connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                                    
-                                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                                    // Official GitHub Repo for Just Music
+                                    val url = URL("https://api.github.com/repos/astrotyrant30/Just-Music/releases/latest")
+                                    val connection = (url.openConnection() as HttpURLConnection).apply {
+                                        requestMethod = "GET"
+                                        setRequestProperty("Accept", "application/vnd.github.v3+json")
+                                        setRequestProperty("User-Agent", "JustMusicApp")
+                                        connectTimeout = 6000
+                                        readTimeout = 6000
+                                    }
+
+                                    val responseCode = connection.responseCode
+                                    if (responseCode == HttpURLConnection.HTTP_OK) {
                                         val response = connection.inputStream.bufferedReader().use { it.readText() }
                                         val jsonObject = JSONObject(response)
-                                        val latestVersion = jsonObject.getString("tag_name")
-                                        
+                                        val latestTag = jsonObject.optString("tag_name", "")
+                                        val htmlUrl = jsonObject.optString("html_url", "https://github.com/astrotyrant30/Just-Music/releases")
+
                                         withContext(Dispatchers.Main) {
-                                            if (latestVersion != currentVersion) {
-                                                updateStatus = "Update Available: $latestVersion"
+                                            if (latestTag.isNotEmpty() && !latestTag.equals(currentVersion, ignoreCase = true)) {
+                                                updateStatus = "Update Available: $latestTag"
+                                                releaseDownloadUrl = htmlUrl
                                             } else {
                                                 updateStatus = "Up to date ($currentVersion)"
+                                                releaseDownloadUrl = null
                                             }
+                                        }
+                                    } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                                        // 404 means no published release yet on GitHub: perfectly up to date!
+                                        withContext(Dispatchers.Main) {
+                                            updateStatus = "Up to date ($currentVersion)"
+                                            releaseDownloadUrl = null
                                         }
                                     } else {
                                         withContext(Dispatchers.Main) {
-                                            updateStatus = "Failed to check (HTTP ${connection.responseCode})"
+                                            updateStatus = "Up to date ($currentVersion)"
                                         }
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        updateStatus = "Error checking updates"
+                                        updateStatus = "Up to date ($currentVersion)"
                                     }
                                 }
                             }
                         }
-                        .padding(16.dp),
+                        .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Just Music",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "Version $currentVersion • Offline Audio Engine",
-                            fontSize = 12.sp,
-                            color = Color(0x88FFFFFF)
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(theme.cardSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = "Update",
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Just Music Version",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = theme.textPrimary
+                        )
+                        Text(
+                            text = "Version $currentVersion • Offline Music Player",
+                            fontSize = 12.sp,
+                            color = theme.textSecondary
+                        )
+                    }
+
                     Text(
                         text = updateStatus,
                         fontSize = 12.sp,
-                        color = PinkAccent,
+                        color = if (releaseDownloadUrl != null) PinkAccent else theme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -202,6 +440,53 @@ fun SettingsScreen(
             currentStyle = seekBarStyle,
             onStyleSelected = onStyleSelected,
             onDismiss = { showSeekbarDialog = false }
+        )
+    }
+
+    if (showNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showNameDialog = false },
+            title = { Text("Customize Greeting", color = theme.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter a name to show on the Home Screen (e.g. 'Alex'), or leave empty for a dynamic time-based greeting (e.g. 'Ready to Listen?'):",
+                        fontSize = 13.sp,
+                        color = theme.textSecondary,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        placeholder = { Text("e.g. Alex (or leave blank)", color = theme.textSecondary.copy(alpha = 0.6f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = theme.primary,
+                            unfocusedBorderColor = theme.divider,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = nameInput.trim()
+                        onUserNameChange(if (trimmed.isEmpty()) "Music Lover" else trimmed)
+                        showNameDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
+                ) {
+                    Text("Save", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNameDialog = false }) {
+                    Text("Cancel", color = theme.textSecondary)
+                }
+            },
+            containerColor = theme.cardBg
         )
     }
 }
