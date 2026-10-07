@@ -118,6 +118,13 @@ class MusicPlayerManager(
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
                 _durationMs.value = controller?.duration?.coerceAtLeast(0L) ?: 0L
+            } else if (playbackState == Player.STATE_ENDED) {
+                if (_repeatMode.value == Player.REPEAT_MODE_ONE) {
+                    seekTo(0L)
+                    controller?.play()
+                } else {
+                    playNext()
+                }
             }
         }
 
@@ -172,10 +179,11 @@ class MusicPlayerManager(
     }
 
     fun playSong(song: Song, songQueue: List<Song> = listOf(song)) {
-        _queue.value = songQueue
-        val index = songQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+        val actualQueue = if (songQueue.isEmpty()) listOf(song) else songQueue
+        _queue.value = actualQueue
+        val index = actualQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
-        val mediaItems = songQueue.map { s ->
+        val mediaItems = actualQueue.map { s ->
             MediaItem.Builder()
                 .setMediaId(s.id.toString())
                 .setUri(s.contentUri)
@@ -214,11 +222,88 @@ class MusicPlayerManager(
     }
 
     fun playNext() {
-        controller?.seekToNext()
+        val q = _queue.value
+        val current = _currentSong.value
+        if (q.isNotEmpty()) {
+            val currentIndex = q.indexOfFirst { it.id == current?.id }
+            val nextIndex = if (_shuffleMode.value) {
+                if (q.size > 1) {
+                    val remaining = q.indices.filter { it != currentIndex }
+                    remaining.random()
+                } else 0
+            } else {
+                if (currentIndex in 0 until (q.size - 1)) {
+                    currentIndex + 1
+                } else if (_repeatMode.value == Player.REPEAT_MODE_ALL || q.size > 1) {
+                    0
+                } else {
+                    -1
+                }
+            }
+
+            if (nextIndex in q.indices) {
+                val nextSong = q[nextIndex]
+                _currentSong.value = nextSong
+                scope.launch {
+                    playlistRepository.recordPlayback(nextSong.id)
+                    settingsRepository.setLastPlayedSongId(nextSong.id)
+                }
+                val c = controller
+                if (c != null && c.mediaItemCount == q.size) {
+                    c.seekToDefaultPosition(nextIndex)
+                    c.play()
+                } else {
+                    playSong(nextSong, q)
+                }
+                return
+            }
+        }
+        controller?.seekToNextMediaItem()
     }
 
     fun playPrevious() {
-        controller?.seekToPrevious()
+        val pos = controller?.currentPosition ?: _currentPositionMs.value
+        if (pos > 3000L) {
+            seekTo(0L)
+            return
+        }
+        val q = _queue.value
+        val current = _currentSong.value
+        if (q.isNotEmpty()) {
+            val currentIndex = q.indexOfFirst { it.id == current?.id }
+            val prevIndex = if (_shuffleMode.value) {
+                if (q.size > 1) {
+                    val remaining = q.indices.filter { it != currentIndex }
+                    remaining.random()
+                } else 0
+            } else {
+                if (currentIndex > 0) {
+                    currentIndex - 1
+                } else if (_repeatMode.value == Player.REPEAT_MODE_ALL || q.size > 1) {
+                    q.size - 1
+                } else {
+                    0
+                }
+            }
+
+            if (prevIndex in q.indices) {
+                val prevSong = q[prevIndex]
+                _currentSong.value = prevSong
+                scope.launch {
+                    playlistRepository.recordPlayback(prevSong.id)
+                    settingsRepository.setLastPlayedSongId(prevSong.id)
+                }
+                val c = controller
+                if (c != null && c.mediaItemCount == q.size) {
+                    c.seekToDefaultPosition(prevIndex)
+                    c.play()
+                } else {
+                    playSong(prevSong, q)
+                }
+                return
+            }
+        }
+        controller?.seekToPreviousMediaItem()
     }
 
     fun seekTo(positionMs: Long) {
@@ -275,6 +360,10 @@ class MusicPlayerManager(
             val song = _queue.value.find { it.id == songId }
             if (song != null) {
                 _currentSong.value = song
+                scope.launch {
+                    playlistRepository.recordPlayback(song.id)
+                    settingsRepository.setLastPlayedSongId(song.id)
+                }
             }
         }
     }

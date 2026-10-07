@@ -22,6 +22,7 @@ class SettingsRepository(private val context: Context) {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode") // "SYSTEM", "LIGHT", "DARK"
         val USER_NAME = stringPreferencesKey("user_name")
+        val USER_AVATAR = stringPreferencesKey("user_avatar")
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -34,6 +35,10 @@ class SettingsRepository(private val context: Context) {
 
     val userName: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferencesKeys.USER_NAME] ?: "Music Lover"
+    }
+
+    val userAvatar: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.USER_AVATAR] ?: "preset:headphones"
     }
 
     val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -68,6 +73,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUserName(name: String) {
         context.dataStore.edit { prefs ->
             prefs[PreferencesKeys.USER_NAME] = name
+        }
+    }
+
+    suspend fun setUserAvatar(avatar: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.USER_AVATAR] = avatar
         }
     }
 

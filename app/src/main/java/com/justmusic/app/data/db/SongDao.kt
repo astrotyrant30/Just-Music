@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface SongDao {
 
     // Liked Songs
-    @Query("SELECT songId FROM liked_songs")
+    @Query("SELECT songId FROM liked_songs ORDER BY timestamp DESC")
     fun getLikedSongIds(): Flow<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

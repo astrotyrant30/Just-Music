@@ -32,6 +32,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -39,11 +43,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
+import com.justmusic.app.ui.components.ProfileSetupDialog
 
 @Composable
 fun LandingScreen(
-    onGetStarted: () -> Unit
+    onGetStarted: (userName: String, avatarKey: String) -> Unit
 ) {
+    var showProfileSetup by remember { mutableStateOf(false) }
+
     val bgBrush = Brush.verticalGradient(
         colors = listOf(
             Color(0xFF0F172A),
@@ -200,7 +207,7 @@ fun LandingScreen(
                                     colors = listOf(Color(0xFF2563EB), Color(0xFF3B82F6))
                                 )
                             )
-                            .clickable(onClick = onGetStarted)
+                            .clickable { showProfileSetup = true }
                             .padding(horizontal = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -237,6 +244,22 @@ fun LandingScreen(
                     }
                 }
             }
+        }
+
+        if (showProfileSetup) {
+            ProfileSetupDialog(
+                currentName = "",
+                currentAvatar = "preset:headphones",
+                onDismiss = {
+                    showProfileSetup = false
+                    // If dismissed without saving, still allow continuing with defaults
+                    onGetStarted("Music Lover", "preset:headphones")
+                },
+                onSave = { name, avatar ->
+                    showProfileSetup = false
+                    onGetStarted(name, avatar)
+                }
+            )
         }
     }
 }

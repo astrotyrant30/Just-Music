@@ -16,7 +16,7 @@ An offline Android music player focused on clean design, smooth animations, and 
 
 Grab the latest APK directly from the [Releases](https://github.com/astrotyrant30/Just-Music/releases) page:
 
-👉 **[Download JustMusic-v1.0.apk](https://github.com/astrotyrant30/Just-Music/releases/latest)**
+👉 **[Download JustMusic-v1.2.0.apk](https://github.com/astrotyrant30/Just-Music/releases/latest)**
 
 *Requires Android 8.0 (Oreo / API 26) or newer.*
 
@@ -34,17 +34,21 @@ Most music apps today are bloated with podcasts, social feeds, audio ads, and st
 ---
 
 ## 🎧 Features
-
-- **Dynamic Ambient Theme:** The player background smoothly adapts its gradient colors based on the artwork of whatever song is currently playing.
-- **Custom Seekbar Styles:** Standard scrubbers get boring. Pick between 4 animated styles in settings:
-  - 🌊 *Waveform Bars* — Animated audio amplitude bars that bounce with the groove.
-  - 💊 *Smooth Capsule* — Sleek rounded bar with a glowing thumb.
+ 
+- **Dynamic Ambient Theme:** The player background smoothly adapts its gradient colors based on the artwork of whatever song is currently playing, with an entirely opaque backdrop so background views never bleed through.
+- **Dynamic Real-Time Seekbar Visualizers:** Switch seekbar styles on the fly while music is playing, complete with animated live previews in a modern bottom sheet:
+  - 🌊 *Waveform Bars* — Animated audio amplitude bars with real-time waveform dynamics.
+  - 💊 *Smooth Capsule* — Sleek rounded bar with a glowing thumb and fluid seek response.
   - ╌ *Dashed Pulse* — Modern segmented dots with active progress pulsing.
-  - 〰️ *Fluid Wave* — Clean thin line with dynamic wave motion.
+  - 〰️ *Fluid Wave* — Clean thin line with harmonic wave motion.
+- **Full Custom Playlist & Favorites Management:** Create unlimited custom playlists, batch-add tracks, remove songs, and play entire playlists or favorites as continuous, ordered queues.
+- **Rock-Solid Playback Controls:** Fully reliable Next and Previous track navigation with boundary looping, shuffle, and auto-advance.
+- **Personalized Profile & Greeting:** Set your name and choose from stylized neon avatar presets or custom gallery photos on first launch or in settings.
+- **Aesthetic Fullscreen Now Playing UI:** Designed for beauty with centered shadow album art, waveform seeker, floating coral action buttons, and a slide-up Up Next queue sheet.
 - **Smart Audio Output Detection:** A small badge in the player tells you where your audio is actually going — whether that's your phone's speaker, wired headphones, or your specific Bluetooth device (e.g. AirPods, Sony WH-1000XM, Galaxy Buds).
-- **Auto Skip Silence:** Optionally trims dead quiet segments at the beginning and end of tracks automatically.
-- **Favorites & Playlists:** Heart songs on the fly or organize them into custom playlists backed by local SQLite storage.
-- **Background Playback & Lock Screen:** Runs on Android's native MediaSession service, so you get system notifications, lock screen controls, and hardware button support out of the box.
+- **Auto Skip Silence:** Trims dead quiet segments at the beginning and end of tracks automatically.
+- **Modern Adaptive App Icon:** Glowing neon soundwave geometry crafted for modern Android home screens.
+- **Background Playback & Lock Screen:** Runs on Android's native MediaSession service with system notifications and lock screen media controls.
 - **In-App GitHub Updates:** Tap "Check for Updates" in Settings to quickly see if a new APK has been published without having to keep checking GitHub manually.
 
 ---

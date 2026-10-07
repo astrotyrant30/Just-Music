@@ -33,17 +33,24 @@ import com.justmusic.app.data.model.Song
 import com.justmusic.app.ui.components.SongListItem
 import com.justmusic.app.ui.theme.LocalAppThemeColors
 
+import com.justmusic.app.data.model.Playlist
+import com.justmusic.app.ui.components.AddToPlaylistDialog
+
 @Composable
 fun SongsScreen(
     songs: List<Song>,
     currentPlayingSong: Song?,
     isPlaying: Boolean,
     likedSongIds: Set<Long>,
+    playlists: List<Playlist> = emptyList(),
     onSongSelect: (Song, List<Song>) -> Unit,
-    onLikeToggle: (Long) -> Unit
+    onLikeToggle: (Long) -> Unit,
+    onAddToPlaylist: (Long, Long) -> Unit = { _, _ -> },
+    onCreatePlaylistAndAdd: (String, Long) -> Unit = { _, _ -> }
 ) {
     val theme = LocalAppThemeColors.current
     var searchQuery by remember { mutableStateOf("") }
+    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
 
     val filteredSongs = remember(searchQuery, songs) {
         if (searchQuery.isBlank()) songs else {
@@ -117,10 +124,25 @@ fun SongsScreen(
                         isPlaying = isPlaying && currentPlayingSong?.id == song.id,
                         isLiked = likedSongIds.contains(song.id),
                         onClick = { onSongSelect(song, filteredSongs) },
-                        onLikeToggle = { onLikeToggle(song.id) }
+                        onLikeToggle = { onLikeToggle(song.id) },
+                        onOptionsClick = { songForAddToPlaylist = song }
                     )
                 }
             }
         }
+    }
+
+    if (songForAddToPlaylist != null) {
+        AddToPlaylistDialog(
+            song = songForAddToPlaylist!!,
+            playlists = playlists,
+            onDismiss = { songForAddToPlaylist = null },
+            onSelectPlaylist = { p ->
+                onAddToPlaylist(p.id, songForAddToPlaylist!!.id)
+            },
+            onCreateAndAdd = { name ->
+                onCreatePlaylistAndAdd(name, songForAddToPlaylist!!.id)
+            }
+        )
     }
 }

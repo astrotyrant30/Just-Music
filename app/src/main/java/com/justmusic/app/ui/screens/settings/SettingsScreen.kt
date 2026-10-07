@@ -63,25 +63,30 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 
+import com.justmusic.app.ui.components.ProfileSetupDialog
+import com.justmusic.app.ui.components.UserAvatarView
+
 @Composable
 fun SettingsScreen(
     currentThemeMode: String,
     skipSilenceEnabled: Boolean,
     seekBarStyle: SeekBarStyle,
     userName: String = "Music Lover",
+    userAvatar: String = "preset:headphones",
     onThemeSelected: (String) -> Unit,
     onToggleSkipSilence: () -> Unit,
     onStyleSelected: (SeekBarStyle) -> Unit,
-    onUserNameChange: (String) -> Unit = {}
+    onUserNameChange: (String) -> Unit = {},
+    onProfileChange: (String, String) -> Unit = { _, _ -> }
 ) {
     val theme = LocalAppThemeColors.current
     val context = LocalContext.current
     var showSeekbarDialog by remember { mutableStateOf(false) }
-    var showNameDialog by remember { mutableStateOf(false) }
-    var nameInput by remember { mutableStateOf(userName) }
+    var showProfileDialog by remember { mutableStateOf(false) }
+    var localSeekStyle by remember(seekBarStyle) { mutableStateOf(seekBarStyle) }
     var updateStatus by remember { mutableStateOf("Check for Updates") }
     var releaseDownloadUrl by remember { mutableStateOf<String?>(null) }
-    val currentVersion = "v1.1.0"
+    val currentVersion = "v1.2.0"
     val coroutineScope = rememberCoroutineScope()
 
     Column(
@@ -103,7 +108,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 0. Greeting Display Name
+            // 0. Profile & Greeting Display
             item {
                 Row(
                     modifier = Modifier
@@ -111,38 +116,27 @@ fun SettingsScreen(
                         .clip(RoundedCornerShape(20.dp))
                         .background(theme.cardBg)
                         .clickable {
-                            nameInput = if (userName == "Music Lover") "" else userName
-                            showNameDialog = true
+                            showProfileDialog = true
                         }
                         .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(theme.cardSubtle),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Greeting",
-                            tint = theme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    UserAvatarView(
+                        avatarKey = userAvatar,
+                        size = 46.dp
+                    )
 
                     Spacer(modifier = Modifier.width(14.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Greeting Name",
+                            text = "Profile & Greeting",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = theme.textPrimary
                         )
                         Text(
-                            text = if (userName.isNotBlank() && userName != "Music Lover") userName else "Time-based Greeting (Tap to set name)",
+                            text = if (userName.isNotBlank() && userName != "Music Lover") userName else "Time-based Greeting (Tap to set)",
                             fontSize = 13.sp,
                             color = theme.primary,
                             fontWeight = FontWeight.Medium
@@ -260,7 +254,7 @@ fun SettingsScreen(
                             color = theme.textPrimary
                         )
                         Text(
-                            text = seekBarStyle.displayName,
+                            text = localSeekStyle.displayName,
                             fontSize = 13.sp,
                             color = theme.primary,
                             fontWeight = FontWeight.Medium
@@ -437,56 +431,23 @@ fun SettingsScreen(
 
     if (showSeekbarDialog) {
         SeekbarSelectorDialog(
-            currentStyle = seekBarStyle,
-            onStyleSelected = onStyleSelected,
+            currentStyle = localSeekStyle,
+            onStyleSelected = { style ->
+                localSeekStyle = style
+                onStyleSelected(style)
+            },
             onDismiss = { showSeekbarDialog = false }
         )
     }
 
-    if (showNameDialog) {
-        AlertDialog(
-            onDismissRequest = { showNameDialog = false },
-            title = { Text("Customize Greeting", color = theme.textPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(
-                        text = "Enter a name to show on the Home Screen (e.g. 'Alex'), or leave empty for a dynamic time-based greeting (e.g. 'Ready to Listen?'):",
-                        fontSize = 13.sp,
-                        color = theme.textSecondary,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    OutlinedTextField(
-                        value = nameInput,
-                        onValueChange = { nameInput = it },
-                        placeholder = { Text("e.g. Alex (or leave blank)", color = theme.textSecondary.copy(alpha = 0.6f)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = theme.primary,
-                            unfocusedBorderColor = theme.divider,
-                            focusedTextColor = theme.textPrimary,
-                            unfocusedTextColor = theme.textPrimary
-                        )
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val trimmed = nameInput.trim()
-                        onUserNameChange(if (trimmed.isEmpty()) "Music Lover" else trimmed)
-                        showNameDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
-                ) {
-                    Text("Save", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNameDialog = false }) {
-                    Text("Cancel", color = theme.textSecondary)
-                }
-            },
-            containerColor = theme.cardBg
+    if (showProfileDialog) {
+        ProfileSetupDialog(
+            currentName = userName,
+            currentAvatar = userAvatar,
+            onDismiss = { showProfileDialog = false },
+            onSave = { name, avatar ->
+                onProfileChange(name, avatar)
+            }
         )
     }
 }

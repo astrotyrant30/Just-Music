@@ -7,6 +7,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -97,6 +101,7 @@ fun AppNavigation() {
     val isPlaying by musicPlayerManager.isPlaying.collectAsState()
     val currentPositionMs by musicPlayerManager.currentPositionMs.collectAsState()
     val durationMs by musicPlayerManager.durationMs.collectAsState()
+    val queue by musicPlayerManager.queue.collectAsState()
     val shuffleMode by musicPlayerManager.shuffleMode.collectAsState()
     val repeatMode by musicPlayerManager.repeatMode.collectAsState()
     val skipSilenceEnabled by musicPlayerManager.skipSilenceEnabled.collectAsState()
@@ -107,6 +112,7 @@ fun AppNavigation() {
     val isOnboardingCompleted by settingsRepository.isOnboardingCompleted.collectAsState(initial = null)
     val currentThemeMode by settingsRepository.themeMode.collectAsState(initial = "DARK")
     val userName by settingsRepository.userName.collectAsState(initial = "Music Lover")
+    val userAvatar by settingsRepository.userAvatar.collectAsState(initial = "preset:headphones")
     val seekBarStyle by settingsRepository.seekBarStyle.collectAsState(initial = SeekBarStyle.WAVEFORM)
     val playlists by playlistRepository.playlists.collectAsState(initial = emptyList())
     val historyEntities by playlistRepository.recentHistory.collectAsState(initial = emptyList())
@@ -117,7 +123,9 @@ fun AppNavigation() {
     }
 
     val likedSongsList = remember(likedSongIds, allSongs) {
-        allSongs.filter { likedSongIds.contains(it.id) }
+        val songMap = allSongs.associateBy { it.id }
+        // Keep order of likedSongIds (most recently liked first)
+        likedSongIds.mapNotNull { songMap[it] }
     }
 
     var dynamicColors by remember { mutableStateOf<DynamicMusicColors?>(null) }
@@ -287,133 +295,186 @@ fun AppNavigation() {
                 }
             }
         ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            NavHost(
-                navController = navController,
-                startDestination = startDestination
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                composable(Screen.Landing.route) {
-                    LandingScreen(
-                        onGetStarted = {
-                            scope.launch {
-                                settingsRepository.setOnboardingCompleted(true)
+                // Smooth Fluent Page Transitions
+                NavHost(
+                    navController = navController,
+                    startDestination = startDestination,
+                    enterTransition = { fadeIn(animationSpec = tween(220)) },
+                    exitTransition = { fadeOut(animationSpec = tween(180)) },
+                    popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+                    popExitTransition = { fadeOut(animationSpec = tween(180)) }
+                ) {
+                    composable(Screen.Landing.route) {
+                        LandingScreen(
+                            onGetStarted = { chosenName, chosenAvatar ->
+                                scope.launch {
+                                    settingsRepository.setUserName(chosenName)
+                                    settingsRepository.setUserAvatar(chosenAvatar)
+                                    settingsRepository.setOnboardingCompleted(true)
+                                }
+                                checkAndRequestPermissions()
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Landing.route) { inclusive = true }
+                                }
                             }
-                            checkAndRequestPermissions()
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Landing.route) { inclusive = true }
-                            }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(Screen.Home.route) {
-                    HomeScreen(
-                        songs = allSongs,
-                        recentlyPlayed = recentlyPlayedSongs,
-                        likedSongs = likedSongsList,
-                        currentPlayingSong = currentSong,
-                        isPlaying = isPlaying,
-                        likedSongIds = likedSongIds,
-                        userName = userName,
-                        sleepTimerRemainingMinutes = sleepTimerRemainingMinutes,
-                        onSongSelect = { song, queue ->
-                            musicPlayerManager.playSong(song, queue)
-                            isPlayerExpanded = true
-                        },
-                        onLikeToggle = { songId -> musicPlayerManager.toggleLikeSong(songId) },
-                        onTogglePlayPause = { musicPlayerManager.togglePlayPause() },
-                        onSetSleepTimer = { mins -> musicPlayerManager.setSleepTimer(mins) },
-                        onRequestScan = { checkAndRequestPermissions() }
-                    )
-                }
-
-                composable(Screen.Songs.route) {
-                    SongsScreen(
-                        songs = allSongs,
-                        currentPlayingSong = currentSong,
-                        isPlaying = isPlaying,
-                        likedSongIds = likedSongIds,
-                        onSongSelect = { song, queue ->
-                            musicPlayerManager.playSong(song, queue)
-                            isPlayerExpanded = true
-                        },
-                        onLikeToggle = { songId -> musicPlayerManager.toggleLikeSong(songId) }
-                    )
-                }
-
-                composable(Screen.Playlists.route) {
-                    PlaylistsScreen(
-                        playlists = playlists,
-                        likedSongs = likedSongsList,
-                        onCreatePlaylist = { name ->
-                            scope.launch { playlistRepository.createPlaylist(name) }
-                        },
-                        onPlaylistSelect = { playlist ->
-                            // Play or open custom playlist
-                        },
-                        onLikedSongsSelect = {
-                            if (likedSongsList.isNotEmpty()) {
-                                musicPlayerManager.playSong(likedSongsList.first(), likedSongsList)
+                    composable(Screen.Home.route) {
+                        HomeScreen(
+                            songs = allSongs,
+                            recentlyPlayed = recentlyPlayedSongs,
+                            likedSongs = likedSongsList,
+                            currentPlayingSong = currentSong,
+                            isPlaying = isPlaying,
+                            likedSongIds = likedSongIds,
+                            userName = userName,
+                            userAvatar = userAvatar,
+                            playlists = playlists,
+                            sleepTimerRemainingMinutes = sleepTimerRemainingMinutes,
+                            onSongSelect = { song, songQueue ->
+                                musicPlayerManager.playSong(song, songQueue)
                                 isPlayerExpanded = true
+                            },
+                            onLikeToggle = { songId -> musicPlayerManager.toggleLikeSong(songId) },
+                            onTogglePlayPause = { musicPlayerManager.togglePlayPause() },
+                            onSetSleepTimer = { mins -> musicPlayerManager.setSleepTimer(mins) },
+                            onRequestScan = { checkAndRequestPermissions() },
+                            onUpdateProfile = { newName, newAvatar ->
+                                scope.launch {
+                                    settingsRepository.setUserName(newName)
+                                    settingsRepository.setUserAvatar(newAvatar)
+                                }
+                            },
+                            onAddToPlaylist = { playlistId, songId ->
+                                scope.launch { playlistRepository.addSongToPlaylist(playlistId, songId) }
+                            },
+                            onCreatePlaylistAndAdd = { name, songId ->
+                                scope.launch {
+                                    val pid = playlistRepository.createPlaylist(name)
+                                    playlistRepository.addSongToPlaylist(pid, songId)
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
+
+                    composable(Screen.Songs.route) {
+                        SongsScreen(
+                            songs = allSongs,
+                            currentPlayingSong = currentSong,
+                            isPlaying = isPlaying,
+                            likedSongIds = likedSongIds,
+                            playlists = playlists,
+                            onSongSelect = { song, songQueue ->
+                                musicPlayerManager.playSong(song, songQueue)
+                                isPlayerExpanded = true
+                            },
+                            onLikeToggle = { songId -> musicPlayerManager.toggleLikeSong(songId) },
+                            onAddToPlaylist = { playlistId, songId ->
+                                scope.launch { playlistRepository.addSongToPlaylist(playlistId, songId) }
+                            },
+                            onCreatePlaylistAndAdd = { name, songId ->
+                                scope.launch {
+                                    val pid = playlistRepository.createPlaylist(name)
+                                    playlistRepository.addSongToPlaylist(pid, songId)
+                                }
+                            }
+                        )
+                    }
+
+                    composable(Screen.Playlists.route) {
+                        PlaylistsScreen(
+                            playlists = playlists,
+                            allSongs = allSongs,
+                            likedSongs = likedSongsList,
+                            currentPlayingSong = currentSong,
+                            isPlaying = isPlaying,
+                            likedSongIds = likedSongIds,
+                            playlistRepository = playlistRepository,
+                            onCreatePlaylist = { name ->
+                                scope.launch { playlistRepository.createPlaylist(name) }
+                            },
+                            onDeletePlaylist = { playlistId ->
+                                scope.launch { playlistRepository.deletePlaylist(playlistId) }
+                            },
+                            onSongSelect = { song, songQueue ->
+                                musicPlayerManager.playSong(song, songQueue)
+                                isPlayerExpanded = true
+                            },
+                            onLikeToggle = { songId -> musicPlayerManager.toggleLikeSong(songId) }
+                        )
+                    }
+
+                    composable(Screen.Settings.route) {
+                        SettingsScreen(
+                            currentThemeMode = currentThemeMode,
+                            skipSilenceEnabled = skipSilenceEnabled,
+                            seekBarStyle = seekBarStyle,
+                            userName = userName,
+                            userAvatar = userAvatar,
+                            onThemeSelected = { mode ->
+                                scope.launch { settingsRepository.setThemeMode(mode) }
+                            },
+                            onToggleSkipSilence = { musicPlayerManager.toggleSkipSilence() },
+                            onStyleSelected = { style ->
+                                scope.launch { settingsRepository.setSeekBarStyle(style) }
+                            },
+                            onUserNameChange = { newName ->
+                                scope.launch { settingsRepository.setUserName(newName) }
+                            },
+                            onProfileChange = { newName, newAvatar ->
+                                scope.launch {
+                                    settingsRepository.setUserName(newName)
+                                    settingsRepository.setUserAvatar(newAvatar)
+                                }
+                            }
+                        )
+                    }
                 }
 
-                composable(Screen.Settings.route) {
-                    SettingsScreen(
-                        currentThemeMode = currentThemeMode,
+                // Expanded Full Aesthetic Player Modal Overlay
+                AnimatedVisibility(
+                    visible = isPlayerExpanded && currentSong != null,
+                    enter = slideInVertically(
+                        animationSpec = tween(320, easing = FastOutSlowInEasing),
+                        initialOffsetY = { it }
+                    ) + fadeIn(animationSpec = tween(220)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(280, easing = FastOutSlowInEasing),
+                        targetOffsetY = { it }
+                    ) + fadeOut(animationSpec = tween(200))
+                ) {
+                    AestheticPlayerScreen(
+                        song = currentSong,
+                        isPlaying = isPlaying,
+                        currentPositionMs = currentPositionMs,
+                        durationMs = durationMs,
+                        isLiked = likedSongIds.contains(currentSong?.id ?: -1L),
+                        shuffleMode = shuffleMode,
+                        repeatMode = repeatMode,
                         skipSilenceEnabled = skipSilenceEnabled,
                         seekBarStyle = seekBarStyle,
-                        userName = userName,
-                        onThemeSelected = { mode ->
-                            scope.launch { settingsRepository.setThemeMode(mode) }
-                        },
+                        audioDeviceName = audioDeviceName,
+                        queue = queue,
+                        onTogglePlayPause = { musicPlayerManager.togglePlayPause() },
+                        onSkipNext = { musicPlayerManager.playNext() },
+                        onSkipPrevious = { musicPlayerManager.playPrevious() },
+                        onSeekTo = { pos -> musicPlayerManager.seekTo(pos) },
+                        onToggleShuffle = { musicPlayerManager.toggleShuffle() },
+                        onToggleRepeat = { musicPlayerManager.toggleRepeat() },
                         onToggleSkipSilence = { musicPlayerManager.toggleSkipSilence() },
-                        onStyleSelected = { style ->
-                            scope.launch { settingsRepository.setSeekBarStyle(style) }
-                        },
-                        onUserNameChange = { newName ->
-                            scope.launch { settingsRepository.setUserName(newName) }
-                        }
+                        onToggleLike = { songId -> musicPlayerManager.toggleLikeSong(songId) },
+                        onStyleSelected = { style -> scope.launch { settingsRepository.setSeekBarStyle(style) } },
+                        onSelectFromQueue = { song -> musicPlayerManager.playSong(song, queue) },
+                        onCollapse = { isPlayerExpanded = false }
                     )
                 }
-            }
-
-            // Expanded Full Aesthetic Player Modal Overlay
-            AnimatedVisibility(
-                visible = isPlayerExpanded && currentSong != null,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it })
-            ) {
-                AestheticPlayerScreen(
-                    song = currentSong,
-                    isPlaying = isPlaying,
-                    currentPositionMs = currentPositionMs,
-                    durationMs = durationMs,
-                    isLiked = likedSongIds.contains(currentSong?.id ?: -1L),
-                    shuffleMode = shuffleMode,
-                    repeatMode = repeatMode,
-                    skipSilenceEnabled = skipSilenceEnabled,
-                    seekBarStyle = seekBarStyle,
-                    audioDeviceName = audioDeviceName,
-                    onTogglePlayPause = { musicPlayerManager.togglePlayPause() },
-                    onSkipNext = { musicPlayerManager.playNext() },
-                    onSkipPrevious = { musicPlayerManager.playPrevious() },
-                    onSeekTo = { pos -> musicPlayerManager.seekTo(pos) },
-                    onToggleShuffle = { musicPlayerManager.toggleShuffle() },
-                    onToggleRepeat = { musicPlayerManager.toggleRepeat() },
-                    onToggleSkipSilence = { musicPlayerManager.toggleSkipSilence() },
-                    onToggleLike = { songId -> musicPlayerManager.toggleLikeSong(songId) },
-                    onStyleSelected = { style -> scope.launch { settingsRepository.setSeekBarStyle(style) } },
-                    onCollapse = { isPlayerExpanded = false }
-                )
             }
         }
     }
-}
 }

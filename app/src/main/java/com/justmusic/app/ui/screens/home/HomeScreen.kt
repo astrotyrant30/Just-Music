@@ -52,6 +52,10 @@ import com.justmusic.app.ui.components.SongListItem
 import com.justmusic.app.ui.theme.LocalAppThemeColors
 import com.justmusic.app.ui.theme.PinkAccent
 
+import com.justmusic.app.data.model.Playlist
+import com.justmusic.app.ui.components.AddToPlaylistDialog
+import com.justmusic.app.ui.components.ProfileSetupDialog
+import com.justmusic.app.ui.components.UserAvatarView
 import java.util.Calendar
 
 @Composable
@@ -63,12 +67,17 @@ fun HomeScreen(
     isPlaying: Boolean,
     likedSongIds: Set<Long>,
     userName: String = "Music Lover",
+    userAvatar: String = "preset:headphones",
+    playlists: List<Playlist> = emptyList(),
     sleepTimerRemainingMinutes: Int? = null,
     onSongSelect: (Song, List<Song>) -> Unit,
     onLikeToggle: (Long) -> Unit,
     onTogglePlayPause: () -> Unit = {},
     onSetSleepTimer: (Int) -> Unit = {},
-    onRequestScan: () -> Unit = {}
+    onRequestScan: () -> Unit = {},
+    onUpdateProfile: (String, String) -> Unit = { _, _ -> },
+    onAddToPlaylist: (Long, Long) -> Unit = { _, _ -> },
+    onCreatePlaylistAndAdd: (String, Long) -> Unit = { _, _ -> }
 ) {
     val theme = LocalAppThemeColors.current
     val (greetingSalutation, greetingTitle) = remember(userName) { getGreetingPair(userName) }
@@ -76,6 +85,8 @@ fun HomeScreen(
     val filterCategories = listOf("Trending", "Popular", "Top Chart", "Recently Added", "Favorites")
 
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
+    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
 
     // Find the top track: use most recently played, or first track from library
     val topSong = recentlyPlayed.firstOrNull() ?: songs.firstOrNull()
@@ -144,21 +155,32 @@ fun HomeScreen(
                     )
                 }
 
-                // Top right 4-dot menu / grid icon button
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (theme.isDark) Color(0x22FFFFFF) else Color(0x0C000000))
-                        .clickable { onRequestScan() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.GridView,
-                        contentDescription = "Menu / Scan",
-                        tint = theme.textPrimary,
-                        modifier = Modifier.size(22.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Profile Avatar button
+                    UserAvatarView(
+                        avatarKey = userAvatar,
+                        size = 42.dp,
+                        onClick = { showProfileDialog = true }
                     )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    // Top right 4-dot menu / grid icon button
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (theme.isDark) Color(0x22FFFFFF) else Color(0x0C000000))
+                            .clickable { onRequestScan() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.GridView,
+                            contentDescription = "Menu / Scan",
+                            tint = theme.textPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         }
@@ -528,10 +550,38 @@ fun HomeScreen(
                     isPlaying = isPlaying && currentPlayingSong?.id == song.id,
                     isLiked = likedSongIds.contains(song.id),
                     onClick = { onSongSelect(song, displayedSongs) },
-                    onLikeToggle = { onLikeToggle(song.id) }
+                    onLikeToggle = { onLikeToggle(song.id) },
+                    onOptionsClick = { songForAddToPlaylist = song }
                 )
             }
         }
+    }
+
+    // Add To Playlist Dialog
+    if (songForAddToPlaylist != null) {
+        AddToPlaylistDialog(
+            song = songForAddToPlaylist!!,
+            playlists = playlists,
+            onDismiss = { songForAddToPlaylist = null },
+            onSelectPlaylist = { p ->
+                onAddToPlaylist(p.id, songForAddToPlaylist!!.id)
+            },
+            onCreateAndAdd = { name ->
+                onCreatePlaylistAndAdd(name, songForAddToPlaylist!!.id)
+            }
+        )
+    }
+
+    // Profile Setup / Edit Dialog
+    if (showProfileDialog) {
+        ProfileSetupDialog(
+            currentName = userName,
+            currentAvatar = userAvatar,
+            onDismiss = { showProfileDialog = false },
+            onSave = { name, avatar ->
+                onUpdateProfile(name, avatar)
+            }
+        )
     }
 
     // Sleep Timer Dialog
